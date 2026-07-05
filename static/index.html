@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EU AI Act Compliance Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --bg-input: #F7FAFF;
+    --card: #FFFFFF;
+    --border: #C9D6EC;
+    --accent: #003399;
+    --hover: #002266;
+    --warn: #997A00;
+    --warn-bg: rgba(255, 204, 0, 0.15);
+    --warn-border: #FFCC00;
+    --text: #003399;
+    --text-dim: #33507D;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+
+  header {
+    margin-bottom: 40px;
+  }
+
+  .eyebrow {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  textarea:focus {
+    border-color: var(--accent);
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .chip {
+    background: rgba(0, 51, 153, 0.06);
+    border: 1px solid rgba(0, 51, 153, 0.35);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .chip:hover {
+    background: rgba(0, 34, 102, 0.1);
+    border-color: var(--hover);
+    color: var(--hover);
+  }
+
+  .submit-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 18px;
+  }
+
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 22px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  button.primary:hover:not(:disabled) {
+    background: var(--hover);
+  }
+
+  button.primary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  button.primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .state {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  .state .big-spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  .error-card {
+    display: none;
+    border-color: var(--warn-border);
+    background: var(--warn-bg);
+  }
+
+  .error-card .error-title {
+    color: var(--warn);
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+
+  .error-card .error-detail {
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .results {
+    display: none;
+  }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .results-header .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .results-header span {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .briefing {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .briefing h1, .briefing h2, .briefing h3 {
+    color: var(--text);
+    margin-top: 24px;
+    margin-bottom: 10px;
+  }
+
+  .briefing h1:first-child, .briefing h2:first-child, .briefing h3:first-child {
+    margin-top: 0;
+  }
+
+  .briefing h2 {
+    font-size: 19px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  .briefing h3 {
+    font-size: 16px;
+    color: var(--accent);
+  }
+
+  .briefing p {
+    margin: 10px 0;
+    color: var(--text-dim);
+  }
+
+  .briefing ul, .briefing ol {
+    color: var(--text-dim);
+    padding-left: 22px;
+  }
+
+  .briefing li {
+    margin: 6px 0;
+  }
+
+  .briefing code {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 13px;
+  }
+
+  .briefing strong {
+    color: var(--text);
+  }
+
+  .briefing blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 12px 0;
+    padding: 4px 16px;
+    color: var(--text-dim);
+  }
+
+  footer {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 12px;
+    margin-top: 40px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">RAG Compliance Pipeline</div>
+    <h1>EU AI Act Compliance Assistant</h1>
+    <p class="subtitle">Ask a question about EU AI Act obligations and get a structured regulatory briefing grounded in the source text.</p>
+  </header>
+
+  <div class="card">
+    <label for="question">Your Compliance Question</label>
+    <textarea id="question" placeholder="Ask about EU AI Act obligations...">What are the EU AI Act obligations for a fraud detection system used in credit scoring?</textarea>
+    <div class="chips">
+      <div class="chip" data-question="What are high-risk AI system requirements?">What are high-risk AI system requirements?</div>
+      <div class="chip" data-question="What transparency obligations exist for AI providers?">What transparency obligations exist for AI providers?</div>
+      <div class="chip" data-question="How should training data be prepared under Article 10?">How should training data be prepared under Article 10?</div>
+    </div>
+    <div class="submit-row">
+      <button class="primary" id="submitBtn">
+        <span class="spinner" id="btnSpinner"></span>
+        <span id="btnLabel">Get Compliance Briefing</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card state" id="loadingState">
+    <div class="big-spinner"></div>
+    <div>Analyzing regulatory requirements...</div>
+  </div>
+
+  <div class="card error-card" id="errorState">
+    <div class="error-title">Something went wrong</div>
+    <div class="error-detail" id="errorDetail">We couldn't retrieve a compliance briefing. Please try again.</div>
+  </div>
+
+  <div class="card results" id="results">
+    <div class="results-header">
+      <div class="dot"></div>
+      <span>Compliance Briefing</span>
+    </div>
+    <div class="briefing" id="briefingContent"></div>
+  </div>
+
+  <footer>Generated by a RAG pipeline over EU AI Act source materials. Not a substitute for legal advice.</footer>
+</div>
+
+<script>
+  const questionEl = document.getElementById('question');
+  const submitBtn = document.getElementById('submitBtn');
+  const btnSpinner = document.getElementById('btnSpinner');
+  const btnLabel = document.getElementById('btnLabel');
+  const loadingState = document.getElementById('loadingState');
+  const errorState = document.getElementById('errorState');
+  const errorDetail = document.getElementById('errorDetail');
+  const results = document.getElementById('results');
+  const briefingContent = document.getElementById('briefingContent');
+
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      questionEl.value = chip.getAttribute('data-question');
+      questionEl.focus();
+    });
+  });
+
+  async function submitQuestion() {
+    const question = questionEl.value.trim();
+    if (!question) {
+      questionEl.focus();
+      return;
+    }
+
+    results.style.display = 'none';
+    errorState.style.display = 'none';
+    loadingState.style.display = 'flex';
+    submitBtn.disabled = true;
+    btnSpinner.style.display = 'inline-block';
+    btnLabel.textContent = 'Analyzing...';
+
+    try {
+      const response = await fetch('/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data || typeof data.briefing !== 'string') {
+        throw new Error('Response did not include a briefing.');
+      }
+
+      briefingContent.innerHTML = marked.parse(data.briefing);
+      results.style.display = 'block';
+    } catch (err) {
+      errorDetail.textContent = 'We couldn\'t retrieve a compliance briefing. Please check your connection and try again.';
+      errorState.style.display = 'block';
+      console.error('Compliance query failed:', err);
+    } finally {
+      loadingState.style.display = 'none';
+      submitBtn.disabled = false;
+      btnSpinner.style.display = 'none';
+      btnLabel.textContent = 'Get Compliance Briefing';
+    }
+  }
+
+  submitBtn.addEventListener('click', submitQuestion);
+</script>
+</body>
+</html>
