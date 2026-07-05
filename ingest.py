@@ -1,7 +1,7 @@
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import SentenceTransformerEmbeddings
 from langchain_chroma import Chroma
+from langchain_community.embeddings import FastEmbedEmbeddings
 
 def build_vectorstore(pdf_path="docs/eu_ai_act.pdf"):
     # 1. load PDF
@@ -14,9 +14,8 @@ def build_vectorstore(pdf_path="docs/eu_ai_act.pdf"):
     )
     chunks = splitter.split_documents(documents)
     # 3. create embedding function — all-MiniLM-L6-v2
-    embedding_fn = SentenceTransformerEmbeddings(
-        model_name="all-MiniLM-L6-v2"
-    )
+    embedding_fn = FastEmbedEmbeddings()
+
     # 4. create and return Chroma vectorstore
     vectorstore = Chroma.from_documents(
         documents=chunks,

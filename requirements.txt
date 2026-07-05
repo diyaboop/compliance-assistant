@@ -7,7 +7,7 @@ langchain-chroma
 langchain-anthropic
 langchain-text-splitters
 langgraph
-sentence-transformers
+fastembed
 chromadb
 pypdf2
 pydantic
