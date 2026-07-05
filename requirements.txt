@@ -3,12 +3,8 @@ uvicorn
 anthropic
 langchain
 langchain-community
-langchain-chroma
-langchain-anthropic
 langchain-text-splitters
 langgraph
-fastembed
 chromadb
-pypdf2
-pydantic
 pypdf
+pydantic

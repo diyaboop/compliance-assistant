@@ -22,7 +22,7 @@ async def home():
 @app.post("/query")
 async def query(request: QueryRequest):
     result = pipeline.invoke({
-        "question": "What are our obligations under the EU AI Act for a fraud detection system?",
+        "question": request.question,
         "retrieved_docs": [],
         "analysis": "",
         "briefing": "",

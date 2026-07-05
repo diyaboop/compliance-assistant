@@ -14,8 +14,11 @@ class ComplianceState(TypedDict):
 
 def research_agent(state: ComplianceState) -> dict:
     user_query = state["question"]
-    retrieved_chunks = vectorstore.similarity_search(user_query, k=5) 
-    retrieved_texts = [doc.page_content for doc in retrieved_chunks]
+    results = vectorstore.query(
+        query_texts=[user_query],
+        n_results=5
+    )
+    retrieved_texts = results["documents"][0]
     return {
         "retrieved_docs": retrieved_texts,
         "current_agent": "analysis"
