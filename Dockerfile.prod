@@ -1,0 +1,33 @@
+# Dockerfile.prod: PRODUCTION / STATELESS DEPLOY ONLY (e.g. AWS App Runner).
+# Bakes the ChromaDB vector store into the image at build time — there is no
+# runtime volume. Do NOT use this with docker-compose.yml's chroma_data volume
+# mount: the mount will shadow the baked-in data with an empty directory,
+# silently producing a ChromaDB collection with 0 documents. Do NOT use this
+# for local dev where you need to re-ingest documents or test debug routes —
+# use the plain Dockerfile instead.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Bake the vector store into the image at build time — App Runner is stateless,
+# so there is no mounted volume at runtime to populate on first request.
+RUN python -c "from ingest import build_vectorstore; build_vectorstore()"
+
+# Debug routes must stay off in a production image regardless of host env,
+# since the poisoning-defense validation pipeline is still unimplemented
+# and there's no runtime persistence left to justify the risk.
+ENV ENABLE_DEBUG_ROUTES=false
+
+# python:3.11-slim has no curl; use the interpreter that's already there.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=5)" || exit 1
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
