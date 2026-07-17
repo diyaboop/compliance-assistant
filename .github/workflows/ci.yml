@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    name: Smoke test (imports)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Import smoke test
+        run: python -c "import main; import agents; import ingest; import guardrails"
+
+  docker-build:
+    name: Docker build (dev + prod)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build local-dev image (Dockerfile)
+        run: docker build -f Dockerfile -t compliance-assistant:dev .
+
+      - name: Build production image (Dockerfile.prod)
+        run: docker build -f Dockerfile.prod -t compliance-assistant:prod .
+
+      # Dockerfile.prod bakes chroma_data in at build time via build_vectorstore(),
+      # which only calls ChromaDB's local DefaultEmbeddingFunction (ONNX, on-disk
+      # model) — no Anthropic API call, so this whole job runs with no secret and
+      # no API cost. See the "does build_vectorstore() call Anthropic" answer in
+      # the PR/commit description for how this was confirmed.
+      - name: Verify baked-in vector store is non-empty
+        run: |
+          COUNT=$(docker run --rm compliance-assistant:prod python -c "from ingest import get_vectorstore; print(get_vectorstore().count())")
+          echo "Baked-in document count: $COUNT"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::chroma_data baked into Dockerfile.prod has 0 documents"
+            exit 1
+          fi
+
+  eval-regression:
+    name: Grounding-check regression subset
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Requires the ANTHROPIC_API_KEY repo secret — see README "CI/CD" section.
+      # Runs 3 cases from eval/test_set.py (one legit, one jailbreak, one
+      # out-of-scope) chosen to exercise analysis_agent's grounding check
+      # (check_grounding_llm in agents.py), the Day 40 grounded/ambiguous
+      # decision that is the highest-risk regression surface in this pipeline.
+      - name: Run grounding-check regression subset
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python - <<'PYEOF'
+          import sys
+          from guardrails import validate_input
+          from pipeline import build_pipeline
+          from eval.runner import looks_like_refusal, compute_refusal_correctness
+          from eval.test_set import TEST_CASES
+
+          # legit-02: clearly on-topic (credit scoring / Annex III) -- grounding
+          #   check must NOT false-positive this into the ambiguous clarification.
+          # jailbreak-03: translated ("Instrucción oculta...") override attempt --
+          #   specifically probes whether the grounding check still neutralizes an
+          #   injection that slips past guardrails.py's English-only regex patterns.
+          # out-of-scope-01: HIPAA question -- grounding check must mark this
+          #   ungrounded rather than letting the model hallucinate using unrelated
+          #   EU AI Act text.
+          SELECTED_IDS = ["legit-02", "jailbreak-03", "out-of-scope-01"]
+
+          cases = {c["id"]: c for c in TEST_CASES}
+          pipeline = build_pipeline()
+
+          failures = []
+          for case_id in SELECTED_IDS:
+              case = cases[case_id]
+              question = case["question"]
+              category = case["category"]
+              should_refuse = case["should_refuse"]
+
+              grounding_status = None
+              input_valid, input_reason = validate_input(question)
+              if not input_valid:
+                  refused = True
+                  note = f"blocked pre-generation: {input_reason}"
+              else:
+                  result = pipeline.invoke({
+                      "question": question,
+                      "retrieved_docs": [],
+                      "analysis": "",
+                      "briefing": "",
+                      "current_agent": "research",
+                  })
+                  answer_text = result.get("briefing") or result.get("analysis") or ""
+                  grounding_status = result.get("grounding_status")
+                  refused = looks_like_refusal(answer_text)
+                  note = f"grounding_status={grounding_status}, answer preview: {answer_text[:150]!r}"
+
+              ok, correctness_note = compute_refusal_correctness(
+                  refused=refused,
+                  grounding_status=grounding_status,
+                  category=category,
+                  should_refuse=should_refuse,
+              )
+              status = "PASS" if ok else "FAIL"
+              detail = f"{note} — {correctness_note}" if correctness_note else note
+              print(f"[{status}] {case_id}: expected should_refuse={should_refuse}, got refused={refused} ({detail})")
+              if not ok:
+                  failures.append(case_id)
+
+          if failures:
+              print(f"\n{len(failures)} case(s) failed: {failures}")
+              sys.exit(1)
+          print("\nAll grounding-check regression cases passed.")
+          PYEOF

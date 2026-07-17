@@ -60,7 +60,8 @@ async def query(request: QueryRequest):
 
     return {
         "briefing": briefing_text,
-        "analysis": analysis_text
+        "analysis": analysis_text,
+        "grounding_status": result.get("grounding_status")
         }
 
 DEBUG_ROUTES_ENABLED = os.environ.get("ENABLE_DEBUG_ROUTES", "false").lower() == "true"

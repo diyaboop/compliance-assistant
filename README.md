@@ -74,6 +74,26 @@ The image itself is confirmed production-ready and portable to any container hos
 
 ---
 
+## CI/CD
+
+GitHub Actions workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+
+| Job | Trigger | Needs `ANTHROPIC_API_KEY`? |
+|---|---|---|
+| `smoke-test` | push / PR to `main` | No |
+| `docker-build` | push / PR to `main` | No |
+| `eval-regression` | manual (`workflow_dispatch`) only | **Yes** |
+
+- **`smoke-test`** — installs `requirements.txt` and imports `main`, `agents`, `ingest`, `guardrails`, so a broken import (e.g. a duplicate function definition, a bad merge) fails CI immediately instead of surfacing at deploy time.
+- **`docker-build`** — builds both `Dockerfile` (local-dev) and `Dockerfile.prod` (stateless prod image), then runs the prod image once to confirm the vector store baked in at build time has a non-zero document count. `build_vectorstore()` only calls ChromaDB's local `DefaultEmbeddingFunction` (on-disk ONNX model) — it never calls the Anthropic API, so this job needs no secret and incurs no API cost.
+- **`eval-regression`** — runs a 3-case subset of `eval/test_set.py` (one `legitimate`, one `jailbreak`, one `out_of_scope`) chosen to exercise `analysis_agent`'s LLM grounding check (`check_grounding_llm`), since a regression there is the highest-risk failure mode in this pipeline: it's what stops the model from hallucinating on out-of-scope questions or acting on an injected instruction. This job calls Claude directly and only runs when someone manually triggers it from the Actions tab (`Run workflow`), never automatically on push or PR.
+
+### Setting up the `ANTHROPIC_API_KEY` secret
+
+Required only for `eval-regression`. In the GitHub repo: **Settings → Secrets and variables → Actions → New repository secret**, name `ANTHROPIC_API_KEY`, value = a real Anthropic API key. Without it, `eval-regression` will fail on the first Claude call the moment it's triggered.
+
+---
+
 ## Tech Stack
 
 Python · FastAPI · LangGraph · ChromaDB · Sentence Transformers · Anthropic Claude · LangChain
